@@ -41,15 +41,16 @@ class Block_Assembler:
     mydate=datetime.datetime.now()
     curmonth=mydate.strftime("%B")
     
-    def __init__(self,blocktype,paths,showlist,showtypes,bumpdict):
+    def __init__(self,blocktype,paths,showlist,showtypes):
         self.blocktype=blocktype
         self.allpaths=paths
         self.paths=paths[blocktype]
         self.showlist=showlist
         self.showtypes=showtypes
-        self.bumpdict=bumpdict
+        if 'bump_logs' in self.paths.keys():
+            self.bumpdict=self.paths['bump_logs']
         
-    def retrieve_clips(self,blocktype,clips): #feed it self.blocktype & self.paths
+    def retrieve_clips(self,clips):
         clip_dict={}
         for key in clips.keys():
             clip_dict[key]=get_full_path(clips[key])
@@ -73,12 +74,11 @@ class Block_Assembler:
 
 
     def remove_used_bumps(self,bump_dict,clip_dict,
-                          bump_recorder_folder_path=self.allpaths['past_bumps'],
                          replace=False,r_kw1='/Volumes/Media and Storage Desktop/',r_kw2='/Users/bwal/Desktop'):
         #open up a couple text files that list bumps used in prior broadcasts
         #this list will be cross-referenced against all bumps and bumps that have been used before
         #will be removed. this helps to keep things fresh. nobody wants to see the same bump every time!
-
+        bump_recorder_folder_path=self.allpaths['past_bumps']
         bump_contents={}
         for b in bump_dict.keys():
             with open(bump_recorder_folder_path+bump_dict[b]['filename'],'r+') as f:
@@ -176,8 +176,9 @@ class Block_Assembler:
 
 
     def remove_past_episodes(self,show,show_files,show_type,
-                             path_to_log=self.allpaths['past_episodes'],
                             replace=False,r_kw1='/Volumes/Media and Storage Desktop/',r_kw2='/Volumes/Elements/'):
+
+        path_to_log=self.allpaths['past_episodes']
         with open(path_to_log+show+'.txt','r+') as f:
             f.seek(0)
             past_episodes_used=f.readlines()
@@ -200,10 +201,10 @@ class Block_Assembler:
 
         return(show_files)
 
-    def write_past_shows(self,master_order,shows,
-                        show_keyword=self.paths['shows'],
-                        master_path=self.allpaths['past_episodes']):
+    def write_past_shows(self,master_order,shows):
 
+        show_keyword=self.paths['shows']
+        master_path=self.allpaths['past_episodes']
         past_shows=np.array(master_order)[np.array([show_keyword in line for line in master_order])]
         show_uqid=np.array([])
         for i,entry in enumerate(past_shows):
@@ -230,8 +231,9 @@ class Block_Assembler:
                 f.write(contents)
 
                 
-    def write_past_bumps(self,master_order,bump_dict,
-                        folder=self.allpaths['past_bumps']):
+    def write_past_bumps(self,master_order,bump_dict):
+        
+        folder=self.allpaths['past_bumps']
         for btype in bump_dict.keys():
             bumps_used=np.array(master_order)[np.array([bump_dict[btype]['keyword'] in line for\
                                                         line in master_order])]
@@ -245,51 +247,6 @@ class Block_Assembler:
                         contents.insert(-1,i_bump+"\n")
                     contents="".join(contents)
                     f.write(contents)
-                    
-    def Custom_Block(self,shows,type_dict,clip_dict,flag_dict,length_dict,
-                    commercial_start=True):
-        
-        master_order=[]
-        
-        if commercial_start=True:
-            tmp_cblock,flag_dict=self.commercial_generator(210,flag_dict,master_order,clip_dict,length_dict)
-            for tmp_c in tmp_cblock:
-                master_order.append(tmp_c)
-        
-        for showpost,show in enumerate(shows):
-            show_files=get_full_path(self.paths['shows']+show)
-            
-            if type_dict[show]=='serial':
-                show_segments=show_files[np.array([show_files[0][:-5] in segment for segment in show_files])==True]
-            elif type_dict[show]=='episodic':
-                ep_selector=random.choice(show_files)[:-5]
-                show_segments=show_files[np.array([ep_selector in segment for segment in show_files])==True]
-            else:
-                print('ERROR: Show type not specified properly. Show type must either be "serial" or "episodic" if a specific episode is not defined')
-                print('Current show is ',show)
-                break
-
-            if showpos>0:
-                tmp_cblock,flag_dict=self.commercial_generator(210,flag_dict,master_order,clip_dict,length_dict)
-                for tmp_c in tmp_cblock:
-                    master_order.append(tmp_c)
-                
-                intro_bump=random.sample(list(clip_dict['bumps']),1)[0]
-                master_order.append(intro_bump)
-
-            for segpos,segment in enumerate(show_segments):
-                master_order.append(segment)
-
-                if segpos<len(show_segments)-1:
-                    fadeout_bump=random.sample(list(clip_dict['bumps']),1)[0]
-                    master_order.append(fadeout_bump)
-
-                    tmp_cblock,flag_dict=self.commercial_generator(210,flag_dict,master_order,clip_dict,length_dict)
-                    for tmp_c in tmp_cblock:
-                        master_order.append(tmp_c)
-
-                    fadein_bump=random.sample(list(clip_dict['bumps']),1)[0]
-                    master_order.append(fadein_bump)
 
                     
     def Adult_Swim(self,shows,type_dict,clip_dict,flag_dict,length_dict,
@@ -451,26 +408,167 @@ class Block_Assembler:
         print('Done!')
         return(master_order)
     
-    def save_to_txt(self,master_order,name,
-                    savepath=self.allpaths['save_path']):
+    
+    def FOX(self,shows,type_dict,clip_dict,flag_dict,length_dict):
+        
+        master_order=[]
+        
+        for showpost,show in enumerate(shows):
+            show_files=get_full_path(self.paths['shows']+show+'/mp4/Subsections/')
+            show_files.sort()
+        
+            show_files=self.remove_past_episodes(show,show_files,type_dict[show],replace=True)
+
+            if type_dict[show]=='serial':
+                show_segments=show_files[np.array([show_files[0][:-8] in segment for segment in show_files])==True]
+            elif type_dict[show]=='episodic':
+                ep_selector=random.choice(show_files)[:-8]
+                show_segments=show_files[np.array([ep_selector in segment for segment in show_files])==True]
+            else:
+                print('ERROR: Show type not specified properly. Show type must either be "serial" or "episodic" if a specific episode is not defined')
+                print('Current show is ',show)
+                break
+
+            show_fadeout_bumps=clip_dict['bumps'][np.array([show+' Fade Out' in bump for bump in clip_dict['bumps']])==True]
+
+            for segpos,segment in enumerate(show_segments):
+
+                if segpos==0:
+                    #generate a commercial break using the function above, specificying the length of the block in seconds followed by
+                    #the probabilities and then append each entry in the commercial block to the master file
+                    tmp_cblock,flag_dict=self.commercial_generator(90,flag_dict,master_order,clip_dict,length_dict)
+                    for tmp_c in tmp_cblock:
+                        master_order.append(tmp_c)
+
+                master_order.append(segment)
+
+                if segpos<len(show_segments)-1:
+                    if len(show_fadeout_bumps)!=0 and segpos==0:
+                        fadeout_bump=random.choice(show_fadeout_bumps)
+                        index=np.argwhere(show_fadeout_bumps==fadeout_bump)
+                        show_fadeout_bumps=np.delete(show_fadeout_bumps,index)
+                        master_order.append(fadeout_bump)
+
+                    tmp_cblock,flag_dict=self.commercial_generator(210,flag_dict,master_order,clip_dict,length_dict)
+                    for tmp_c in tmp_cblock:
+                        master_order.append(tmp_c)
+
+                    #throw a FOX promo for the fade back in to the show - pretty typical for this block
+                    random_promo=random.choice(clip_dict['promos'])
+                    while random_promo in master_order[-30:]:
+                        random_promo=random.choice(clip_dict['promos'])
+                    master_order.append(random_promo)
+
+        return(master_order)
+    
+    
+    
+    def Nick_at_Nite(self,shows,type_dict,clip_dict,flag_dict,length_dict):
+        master_order=[]
+        
+        for showpos,show in enumerate(shows):
+            show_files=get_full_path(self.paths['shows']+show+'/mp4/Subsections/')
+            show_files.sort()
+        
+            show_files=self.remove_past_episodes(show,show_files,type_dict[show],replace=True)
+
+            if type_dict[show]=='serial':
+                show_segments=show_files[np.array([show_files[0][:-8] in segment for segment in show_files])==True]
+            elif type_dict[show]=='episodic':
+                ep_selector=random.choice(show_files)[:-8]
+                show_segments=show_files[np.array([ep_selector in segment for segment in show_files])==True]
+            else:
+                print('ERROR: Show type not specified properly. Show type must either be "serial" or "episodic" if a specific episode is not defined')
+                print('Current show is ',show)
+                break
+
+            for segpos,segment in enumerate(show_segments):
+
+                if segpos==0:
+                    #generate a commercial break using the function above, specificying the length of the block in seconds followed by
+                    #the probabilities and then append each entry in the commercial block to the master file
+                    tmp_cblock,flag_dict=self.commercial_generator(60,flag_dict,master_order,clip_dict,length_dict)
+                    for tmp_c in tmp_cblock:
+                        master_order.append(tmp_c)
+                    
+                    random_jingle=random.choice(clip_dict['bumps'])
+                    while random_jingle in master_order:
+                        random_jingle=random.choice(clip_dict['bumps'])
+                    master_order.append(random_jingle)
+
+                    if showpos<=len(shows)-2:
+                        if showpos not in np.arange(len(shows)-2,len(shows)):
+                            potential_schedules_three=clip_dict['schedules'][np.array([shows[showpos]+' '+shows[showpos+1]+' '+shows[showpos+2] in entry for entry in clip_dict['schedules']])]
+                            potential_schedules_two=clip_dict['schedules'][np.array([shows[showpos]+' '+shows[showpos+1]+' End' in entry for entry in clip_dict['schedules']])]
+                        elif showpos in np.arange(len(shows)-2,len(shows)-1):
+                            potential_schedules_three=np.array([])
+                            potential_schedules_two=clip_dict['schedules'][np.array([shows[showpos]+' '+shows[showpos+1]+' End' in entry for entry in clip_dict['schedules']])]
+                        else:
+                            potential_schedules_three=np.array([])
+                            potential_schedules_two=np.array([])
+
+                        print(show,potential_schedules_three,potential_schedules_two)
+                        if len(potential_schedules_two)==0 and len(potential_schedules_three)==0:
+                            pass
+                        else:
+                            if len(potential_schedules_three)>0 and len(potential_schedules_two)==0:
+                                potential_schedules=potential_schedules_three
+                            elif len(potential_schedules_two)>0 and len(potential_schedules_three)==0:
+                                potential_schedules=potential_schedules_two
+                            else:
+                                potential_schedules=np.append(potential_schedules_three,potential_schedules_two)
+                            random_schedule=random.choice(potential_schedules)
+                            master_order.append(random_schedule)
+
+                master_order.append(segment)
+                
+                if segpos<len(show_segments)-1:
+                    #generate a commercial break using the function above, specificying the length of the block in seconds followed by
+                    #the probabilities and then append each entry in the commercial block to the master file
+                    tmp_cblock,flag_dict=self.commercial_generator(90,flag_dict,master_order,clip_dict,length_dict)
+                    for tmp_c in tmp_cblock:
+                        master_order.append(tmp_c)
+                    
+                    random_jingle=random.choice(clip_dict['bumps'])
+                    while random_jingle in master_order:
+                        random_jingle=random.choice(clip_dict['bumps'])
+                    master_order.append(random_jingle)
+                    
+        return(master_order)
+                
+
+
+    
+    def save_to_txt(self,master_order,name):
+        savepath=self.allpaths['save_path']
         np.savetxt(savepath+name,np.array(['file '+"'"+entry+"'" for entry in master_order]),fmt='%s')
                     
-    def generate(self):
-        clip_dict=self.retrieve_clips(self.blocktype,self.paths['clips'])
-        clip_dict=self.correct_clip_timeofyear(clip_dict,self.curmonth,self.months)
+    def generate(self,
+                reuse_bumps=True):
+        self.clip_dict=self.retrieve_clips(self.paths['clips'])
+        self.clip_dict=self.correct_clip_timeofyear(self.clip_dict,self.curmonth,self.months)
         
         #THIS WILL NEED TO BE CHANGED AT SOME POINT PROBABLY
         probability_dict={}
-        for key in clip_dict.keys():
-            if key!='commercials' and key!='bumps':
+        for key in self.clip_dict.keys():
+            if key!='commercials' and key!='bumps' and key!='schedules':
                 probability_dict[key]=0.05
-        clip_dict['bumps']=self.remove_used_bumps(self.bumpdict,clip_dict,replace=True)
+            
+        if reuse_bumps==False and 'bump_logs' in self.path.keys():
+            self.clip_dict['bumps']=self.remove_used_bumps(self.bumpdict,self.clip_dict,replace=True)
+        elif reuse_bumps==False:
+            print('bump_logs path not specified in filepaths dictionary. Please update this and try again.')
+            print('Reusing bumps...')
         
         length_dict={}
-        for key in clip_dict.keys():
-            length_dict[key]=length_vids(clip_dict[key])
+        for key in self.clip_dict.keys():
+            length_dict[key]=length_vids(self.clip_dict[key])
             
         if self.blocktype=='Adult Swim':
-            master_order=self.Adult_Swim(self.showlist,self.showtypes,clip_dict,probability_dict,length_dict)
+            master_order=self.Adult_Swim(self.showlist,self.showtypes,self.clip_dict,probability_dict,length_dict)
+        elif self.blocktype=='FOX':
+            master_order=self.FOX(self.showlist,self.showtypes,self.clip_dict,probability_dict,length_dict)
+        elif self.blocktype=='Nick at Nite':
+            master_order=self.Nick_at_Nite(self.showlist,self.showtypes,self.clip_dict,probability_dict,length_dict)
             
         return(master_order)
