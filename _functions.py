@@ -52,8 +52,18 @@ def get_commercial_break_length(segments):
     else:
         available_time=((math.ceil(total_lengths_minutes/30)*30)-total_lengths_minutes)*60
 
-    commercial_length=round(available_time/len(segments))
-    return(((math.floor(commercial_length/15)-1)*15))
+    #for some cartoon network shows, the intro and outro are considered
+    #as segments, but we probably don't want to be consider these as
+    #segments for commercial breaks since they likely will not transition
+    #to a commercial break. intro should move right into the first segment
+    if total_lengths_minutes<30 and len(segments)>3:
+        commercial_length=round(available_time/(len(segments)-2)) 
+        seg_flag=True
+        return(((math.floor(commercial_length/15))*15),seg_flag)
+
+    else:
+        commercial_length=round(available_time/len(segments))
+        return(((math.floor(commercial_length/15))*15))
 
 class Block_Assembler:
     
@@ -74,6 +84,21 @@ class Block_Assembler:
             self.paths=paths[blocktype]
             if 'bump_logs' in self.paths.keys():
                 self.bumpdict=self.paths['bump_logs']
+            else:
+                self.bumpdict=None
+        else:
+            self.bumpdict=None
+            self.paths=paths
+                
+        self.boomerang_dict={
+    'Atom Ant':['Atom Ant','Precious Pupp','Hillbilly Bears'],
+    'Quickdraw Mcgraw':['Quickdraw Mcgraw','Auggie Doggie','Snooper and Blabber'],
+    'Magilla Gorilla':['Magilla Gorilla','Ricochet Rabbit','Punkin Puss'],
+    'Huckleberry Hound':['Huckleberry Hound','Pixie Dixie and Mr Jinks','Hokey Wolf'],
+    'Peter Potamus':['Peter Potamus','Breezly and Sneezly','Yippee Yappee Yahooey'],
+    'Secret Squirrel':['Secret Squirrel','Squiddly Diddly','Winsome Witch'],
+    'Yogi Bear':['Yogi Bear','Snagglepuss','Yakky Doodle']
+}
         
     def retrieve_clips(self,clips):
         clip_dict={}
@@ -139,7 +164,8 @@ class Block_Assembler:
 
     #this function is responsible for generating commercial blocks
     def commercial_generator(self,length,probs,master_order,
-                             clip_dict,length_dict
+                             clip_dict,length_dict,
+                             remainder_length=5
                             ):
 
         #initialize our commercial list as an empty list
@@ -152,7 +178,7 @@ class Block_Assembler:
         flag_dict=probs
 
         #while there's still at least 10 seconds left in the commercial block, continue to loop through and add more commercials
-        while commercial_block_size>10:
+        while commercial_block_size>remainder_length:
 
             #calculate the probability that the next pick in the commercial block will be a commercial
             #this probability is defined as the remainder leftover when you subtract the probabilities
@@ -175,7 +201,7 @@ class Block_Assembler:
 
             #if the addition of the new promo causes the commercial block to run 10 seconds over the specified time, then skip 
             #it and select another one
-            if commercial_block_size<-10:
+            if commercial_block_size<-15:
                 commercial_block_size=commercial_block_size+diff
             #if the commercial has already been selected for the broadcast then skip it and select another one
             elif commercial in commercials_list:
@@ -210,8 +236,16 @@ class Block_Assembler:
 
     def remove_past_episodes(self,show,show_files,show_type,
                             replace=False,r_kw1='/Volumes/Media and Storage Desktop/',r_kw2='/Volumes/Elements/'):
-
+        
         path_to_log=self.allpaths['past_episodes']
+        
+        #check to see if show file exists
+        #if it doesn't, create an empty txt file with
+        #the show name as the filename
+        if os.path.exists(path_to_log+show+'.txt')==False:
+            with open(path_to_log+show+'.txt','w') as f:
+                f.seek(0)
+        
         with open(path_to_log+show+'.txt','r+') as f:
             f.seek(0)
             past_episodes_used=f.readlines()
@@ -235,56 +269,61 @@ class Block_Assembler:
         return(show_files)
 
     def write_past_shows(self,master_order,shows):
-
         show_paths=self.allpaths['shows']
         master_path=self.allpaths['past_episodes']
         for i,key in enumerate(show_paths.keys()):
             match=np.array(master_order)[np.array([show_paths[key] in line for line in master_order])]
             if i==0:
-                past_shows=match
+                shows_used_in_block=match
             else:
-                past_shows=np.append(past_shows,match)
-        show_uqid=np.array([])
-        for i,entry in enumerate(past_shows):
+                shows_used_in_block=np.append(shows_used_in_block,match)
 
-            if i==0:
-                show_uqid=np.append(show_uqid,shows[i])
-                j=0
+        shows_to_write=[]
+        for show in shows:
+            if show in self.boomerang_dict:
+                [shows_to_write.append(item) for item in self.boomerang_dict[show]]
             else:
-                if entry[:-5]==past_shows[i-1][:-5]:
-                    show_uqid=np.append(show_uqid,shows[j])
-                else:
-                    j+=1
-                    show_uqid=np.append(show_uqid,shows[j])
-
-        for i,uqid in enumerate(show_uqid):
-            with open(master_path+uqid+'.txt','r+') as f:
+                shows_to_write.append(show)
+                
+        for i,entry in enumerate(shows_to_write):
+            #check to see if show file exists - routine already exists above
+            #but copying it down here just to be safe
+            if os.path.exists(master_path+entry+'.txt')==False:
+                with open(master_path+entry+'.txt','w') as f:
+                    f.seek(0)
+            
+            with open(master_path+entry+'.txt','r+') as f:
                 f.seek(0)
                 contents=f.readlines()
-
-            with open(master_path+uqid+'.txt','w+') as f:
-                if past_shows[i][6:] not in contents:
-                    contents.insert(-1,past_shows[i]+"'\n")
-                contents = "".join(contents)
+            
+            with open(master_path+entry+'.txt','w+') as f:
+                for used_show in shows_used_in_block:
+                    if entry in used_show and used_show[10:] not in contents:
+                        contents.insert(-1,used_show+"'\n")
+                contents="".join(contents)
                 f.write(contents)
+
 
                 
     def write_past_bumps(self,master_order,bump_dict):
         
-        folder=self.allpaths['past_bumps']
-        for btype in bump_dict.keys():
-            bumps_used=np.array(master_order)[np.array([bump_dict[btype]['keyword'] in line for\
-                                                        line in master_order])]
+        if 'bump_logs' in self.paths.keys():
+            folder=self.allpaths['past_bumps']
+            for btype in bump_dict.keys():
+                bumps_used=np.array(master_order)[np.array([bump_dict[btype]['keyword'] in line for\
+                                                            line in master_order])]
 
-            for i_bump in bumps_used:
-                with open(folder+bump_dict[btype]['filename'],'r+') as f:
-                    f.seek(0)
-                    contents=f.readlines()
-                with open(folder+bump_dict[btype]['filename'],'w+') as f:
-                    if i_bump+'\n' not in contents:
-                        contents.insert(-1,i_bump+"\n")
-                    contents="".join(contents)
-                    f.write(contents)
+                for i_bump in bumps_used:
+                    with open(folder+bump_dict[btype]['filename'],'r+') as f:
+                        f.seek(0)
+                        contents=f.readlines()
+                    with open(folder+bump_dict[btype]['filename'],'w+') as f:
+                        if i_bump+'\n' not in contents:
+                            contents.insert(-1,i_bump+"\n")
+                        contents="".join(contents)
+                        f.write(contents)
+        else:
+            print('bump_logs path not defined in dictionary. Not writing bumps...')
 
     def Create_Block(self,shows,type_dict,clip_dict,flag_dict,length_dict):
         master_order=[]
@@ -309,7 +348,12 @@ class Block_Assembler:
                 print('Current show is ',show)
                 break
                 
-            commercial_length=get_commercial_break_length(show_segments)
+            output=get_commercial_break_length(show_segments)
+            if type(output)==tuple:
+                commercial_length,show_segs_include_intros=output
+            else:
+                commercial_length=output
+                show_segs_include_intros=False
 
             for segpos,segment in enumerate(show_segments):
 
@@ -319,13 +363,161 @@ class Block_Assembler:
                     tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
                     for tmp_c in tmp_cblock:
                         master_order.append(tmp_c)
+                    
+                    master_order.append(segment)
+                    if show_segs_include_intros==False:
+                        tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
+                        for tmp_c in tmp_cblock:
+                            master_order.append(tmp_c)
+                
+                elif segpos==len(show_segments)-2 and show_segs_include_intros==True:
+                    master_order.append(segment)
+                    continue
 
-                master_order.append(segment)
-
-                if segpos<len(show_segments)-1:
+                elif segpos<len(show_segments)-1:
+                    master_order.append(segment)
                     tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
                     for tmp_c in tmp_cblock:
                         master_order.append(tmp_c)
+                
+                else:
+                    master_order.append(segment)
+
+        print('Done!')
+        return(master_order)
+    
+    
+    def Boomerang(self,shows,type_dict,clip_dict,flag_dict,length_dict,
+                 ):
+        
+        master_order=[]
+        master_order.append(self.paths['clips']['bumps']+'Up Next - Boomerang.mp4')
+        
+        for showpos,show in enumerate(shows):
+            #select a lead in intro for the show
+            #if a unique intro does not exist, insert a generic one
+                
+            if show not in self.boomerang_dict:
+                show_folder_loc=self.possible_shows[np.array([show in ps for ps in self.possible_shows])==True][0]
+                show_files=get_full_path(show_folder_loc+'/mp4/Subsections/')
+                
+                #sort the files so they're in correct order
+                show_files=np.sort(show_files)
+                #take out episodes of this show that have been played in previously generated blocks
+                show_files=self.remove_past_episodes(show,show_files,type_dict[show],replace=True)
+
+                if type_dict[show]=='serial':
+                    show_segments=show_files[np.array([show_files[0][:-5] in segment for segment in show_files])==True]
+                elif type_dict[show]=='episodic':
+                    ep_selector=random.choice(show_files)[:-5]
+                    show_segments=show_files[np.array([ep_selector in segment for segment in show_files])==True]
+                else:
+                    print('ERROR: Show type not specified properly. Show type must either be "serial" or "episodic" if a specific episode is not defined')
+                    print('Current show is ',show)
+                    break
+                    
+            else:
+                for placemarker,feature in enumerate(self.boomerang_dict[show]):
+                    show_folder_loc=self.possible_shows[np.array([feature in ps for ps in self.possible_shows])==True][0]
+                    show_files=get_full_path(show_folder_loc+'/mp4/Subsections/')
+                    
+                    #sort the files so they're in correct order
+                    show_files=np.sort(show_files)
+                    #take out episodes of this show that have been played in previously generated blocks
+                    show_files=self.remove_past_episodes(show,show_files,type_dict[show],replace=True)
+
+                    if type_dict[show]=='serial':
+                        temporary_segment=show_files[np.array([show_files[0][:-5] in segment for segment in show_files])==True]
+                    elif type_dict[show]=='episodic':
+                        ep_selector=random.choice(show_files)[:-5]
+                        temporary_segment=show_files[np.array([ep_selector in segment for segment in show_files])==True]
+                    else:
+                        print('ERROR: Show type not specified properly. Show type must either be "serial" or "episodic" if a specific episode is not defined')
+                        print('Current show is ',show)
+                        break
+                        
+                    if placemarker==0:
+                        show_segments=temporary_segment
+                    else:
+                        show_segments=np.concatenate((show_segments,temporary_segment))
+            
+            commercial_length=get_commercial_break_length(show_segments)
+                
+            for segpos,segment in enumerate(show_segments):
+                if segpos==0:
+                    
+                    if show in self.boomerang_dict:
+                        #generate a commercial break using the function above, specificying the length of the block in seconds followed by
+                        #the probabilities and then append each entry in the commercial block to the master file
+                        tmp_cblock,flag_dict=self.commercial_generator(commercial_length*1.5,flag_dict,master_order,clip_dict,length_dict)
+                    else:
+                        #generate a commercial break using the function above, specificying the length of the block in seconds followed by
+                        #the probabilities and then append each entry in the commercial block to the master file
+                        tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
+                    for tmp_c in tmp_cblock:
+                        master_order.append(tmp_c)
+
+                        
+                    show_intro=clip_dict['bumps'][np.array([show+' Intro' in bump for bump in clip_dict['bumps']])]
+                    if len(show_intro)<1:
+                        neutral_intros=clip_dict['bumps'][np.array(['Neutral Any' in bump for bump in clip_dict['bumps']])]
+                        master_order.append(random.choice(neutral_intros))
+                    else:
+                        master_order.append(self.paths['clips']['bumps']+show+' Intro.mp4')
+                    
+                    master_order.append(segment)
+                    
+                    transition_bumps_in=clip_dict['bumps'][np.array([show+' Fade In' in bump for bump in clip_dict['bumps']])]
+                    transition_bumps_out=clip_dict['bumps'][np.array([show+' Fade Out' in bump for bump in clip_dict['bumps']])]
+                    if len(transition_bumps_in)<1:
+                        transition_bumps_in=clip_dict['bumps'][np.array(['Neutral Fade In' in bump for bump in clip_dict['bumps']])]
+                    if len(transition_bumps_out)<1:
+                        transition_bumps_out=clip_dict['bumps'][np.array(['Neutral Fade Out' in bump for bump in clip_dict['bumps']])]
+
+                    if show in self.boomerang_dict:
+                        interstitial=clip_dict['bumps'][np.array([show+' Interstitial' in bump for bump in clip_dict['bumps']])]
+                        if len(interstitial)<1:
+                            interstitial=clip_dict['bumps'][np.array(['Neutral Any' in bump for bump in clip_dict['bumps']])]
+                        master_order.append(random.choice(interstitial))
+                        continue
+                                        
+                    master_order.append(random.choice(transition_bumps_out))
+                    tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
+                    for tmp_c in tmp_cblock:
+                        master_order.append(tmp_c)
+                    master_order.append(random.choice(transition_bumps_in))
+                    continue
+                    
+                master_order.append(segment)
+                    
+                if segpos<len(show_segments)-1:
+                    master_order.append(random.choice(transition_bumps_out))
+                    
+                    if show in self.boomerang_dict:
+                        #generate a commercial break using the function above, specificying the length of the block in seconds followed by
+                        #the probabilities and then append each entry in the commercial block to the master file
+                        tmp_cblock,flag_dict=self.commercial_generator(commercial_length*1.5,flag_dict,master_order,clip_dict,length_dict)
+                    else:
+                        #generate a commercial break using the function above, specificying the length of the block in seconds followed by
+                        #the probabilities and then append each entry in the commercial block to the master file
+                        tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
+                    for tmp_c in tmp_cblock:
+                        master_order.append(tmp_c)
+                        
+                    master_order.append(random.choice(transition_bumps_in))
+                
+                elif segpos==len(show_segments)-1:
+                    ending_bump=clip_dict['bumps'][np.array([show+' End' in bump for bump in clip_dict['bumps']])]
+                    if len(ending_bump)>0:
+                        master_order.append(random.choice(ending_bump))
+                        
+                    if showpos<len(shows)-1:
+                        if os.path.isfile(self.paths['clips']['bumps']+'Up Next -'+shows[showpos+1]+'.mp4')==True:
+                            master_order.append(self.paths['clips']['bumps']+'Up Next -'+shows[showpos+1]+'.mp4')
+                            
+                    else:
+                        master_order.append(self.paths['clips']['bumps']+'Neutral End.mp4')
+
 
         return(master_order)
 
@@ -549,7 +741,188 @@ class Block_Assembler:
 
         return(master_order)
     
+    def Top_5(self,master_order,shows,showpos,clip_dict,flag_dict,length_dict,
+             possible_entries=[
+                 'Camp Lazlo','Codename Kids Next Door', 'Courage the Cowardly Dog',
+                 'Cow and Chicken','Dexters Laboratory','Ed Edd n Eddy','Johnny Bravo',
+                 'Powerpuff Girls','The Grim Adventures of Billy and Mandy'],
+              possible_3parters=['Cow and Chicken','Dexters Laboratory','Johnny Bravo',
+                                 'The Grim Adventures of Billy and Mandy'],
+              possible_2parters=['Camp Lazlo','Codename Kids Next Door','Courage the Cowardly Dog',
+                                 'Ed Edd n Eddy','Powerpuff Girls','The Grim Adventures of Billy and Mandy'],
+              top5_folder='/Users/bwal/Desktop/Archived Bumps & Commercials/Cartoon Network/Bumps/Top 5/',
+              top5_year='2002'
+                 ):
+        
+        top5_bumps=get_full_path(top5_folder)
+        top5_bumps=top5_bumps[np.array([top5_year in tb for tb in top5_bumps])==True]
+        fadeout_bumps=top5_bumps[np.array(['Fadeout' in tb for tb in top5_bumps])==True]
+        
+        sel_3parters=[]
+        for i in range(2):
+            random_3parter=random.choice(possible_3parters)
+            while random_3parter in sel_3parters:
+                random_3parter=random.choice(possible_3parters)
+            sel_3parters.append(random_3parter)
+        sel_2parters=[]
+        for i in range(3):
+            random_2parter=random.choice(possible_2parters)
+            while random_2parter in sel_2parters or random_2parter in sel_3parters:
+                random_2parter=random.choice(possible_2parters)
+            sel_2parters.append(random_2parter)
+            
+        show_segments=[]
+        for random_show in sel_3parters:
+            show_folder_loc=self.possible_shows[np.array([random_show in ps for ps in self.possible_shows])==True][0]
+            show_files=get_full_path(show_folder_loc+'/mp4/Subsections/')
+            show_files.sort()
+            ep_selector=random.choice(show_files)[:-8]
+            rsegments=show_files[np.array([ep_selector in segment for segment in show_files])==True]
+            while len(rsegments)<5:
+                ep_selector=random.choice(show_files)[:-8]
+                rsegments=show_files[np.array([ep_selector in segment for segment in show_files])==True]
+            rnum=str(random.choice([1,2,3])).zfill(3)
+            show_segments.append(rsegments[np.array([rnum in segment for segment in rsegments])==True][0])
+        for random_show in sel_2parters:
+            show_folder_loc=self.possible_shows[np.array([random_show in ps for ps in self.possible_shows])==True][0]
+            show_files=get_full_path(show_folder_loc+'/mp4/Subsections/')
+            show_files.sort()
+            show_files=show_files[np.array(['pt1' not in segment for segment in show_files])==True]
+            show_files=show_files[np.array(['pt2' not in segment for segment in show_files])==True]
+            ep_selector=random.choice(show_files)[:-8]
+            rsegments=show_files[np.array([ep_selector in segment for segment in show_files])==True]
+            while len(rsegments)>4:
+                ep_selector=random.choice(show_files)[:-8]
+                rsegments=show_files[np.array([ep_selector in segment for segment in show_files])==True]
+            rnum=str(random.choice([1,2])).zfill(3)
+            show_segments.append(rsegments[np.array([rnum in segment for segment in rsegments])==True][0])
+        
+        commercial_length=get_commercial_break_length(show_segments)
+
+        for segpos,segment in enumerate(show_segments):
+            tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
+            for tmp_c in tmp_cblock:
+                master_order.append(tmp_c)
+            
+            
+            if showpos<(len(shows)-2) and segpos==(len(show_segments)-2):
+                potential_schedules=clip_dict['schedules'][np.array([shows[showpos]+' '+shows[showpos+1] in entry for entry in clip_dict['schedules']])]
+                if len(potential_schedules)!=0:
+                    random_schedule=random.choice(potential_schedules)
+                    master_order.append(random_schedule)
+            if segpos==0:
+                master_order.append(top5_folder+top5_year+' Top 5 Intro.mp4')
+            master_order.append(top5_folder+top5_year+' Top 5 Number '+str(5-segpos)+'.mp4')
+            master_order.append(segment)
+            if segpos!=len(show_segments)-1:
+                master_order.append(random.choice(fadeout_bumps))
+            else:
+                master_order.append(top5_folder+top5_year+' Top 5 Outro.mp4')
+        
+        return(master_order)
+
+        
+        
     
+    def Cartoon_Network(self,shows,type_dict,clip_dict,flag_dict,length_dict):
+        master_order=[]
+        
+        for showpos,show in enumerate(shows):
+            if show=='Top 5':
+                master_order=self.Top_5(master_order,shows,showpos,clip_dict,flag_dict,length_dict)
+                continue
+            
+            show_folder_loc=self.possible_shows[np.array([show in ps for ps in self.possible_shows])==True][0]
+            show_files=get_full_path(show_folder_loc+'/mp4/Subsections/')
+            show_files.sort()
+            
+            show_files=self.remove_past_episodes(show,show_files,type_dict[show],replace=True)
+            
+            if type_dict[show]=='serial':
+                show_segments=show_files[np.array([show_files[0][:-8] in segment for segment in show_files])==True]
+            elif type_dict[show]=='episodic':
+                ep_selector=random.choice(show_files)[:-8]
+                show_segments=show_files[np.array([ep_selector in segment for segment in show_files])==True]
+            else:
+                print('ERROR: Show type not specified properly. Show type must either be "serial" or "episodic" if a specific episode is not defined')
+                print('Current show is ',show)
+                break
+                
+            output=get_commercial_break_length(show_segments)
+            if type(output)==tuple:
+                commercial_length,show_segs_include_intros=output
+            else:
+                commercial_length=output
+                show_segs_include_intros=False
+            
+            #categorize the bumps
+            show_bumps=clip_dict['bumps'][np.array([show+' - ' in bump for bump in clip_dict['bumps']])==True]
+            neutral_bumps=clip_dict['bumps'][np.array(['Neutral - ' in bump for bump in clip_dict['bumps']])==True]
+            
+            if len(show_bumps)==0:
+                possible_bumps=neutral_bumps
+            elif len(show_bumps)<4:
+                possible_bumps=np.concatenate((show_bumps,neutral_bumps))
+            else:
+                possible_bumps=show_bumps
+
+            for segpos,segment in enumerate(show_segments):
+
+                if segpos==0:
+                    #generate a commercial break using the function above, specificying the length of the block in seconds followed by
+                    #the probabilities and then append each entry in the commercial block to the master file
+                    tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
+                    for tmp_c in tmp_cblock:
+                        master_order.append(tmp_c)
+                    
+                    random_bump=random.choice(possible_bumps)
+                    master_order.append(random_bump)
+                    master_order.append(segment)
+                    if show_segs_include_intros==False:
+                        random_bump=random.choice(possible_bumps)
+                        master_order.append(random_bump)
+                        tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
+                        for tmp_c in tmp_cblock:
+                            master_order.append(tmp_c)
+                        random_bump=random.choice(possible_bumps)
+                        master_order.append(random_bump)
+                
+                elif segpos==len(show_segments)-2 and show_segs_include_intros==True:
+                    if showpos<(len(shows)-1):
+                        potential_schedules=clip_dict['schedules'][np.array([shows[showpos]+' '+shows[showpos+1] in entry for entry in clip_dict['schedules']])]
+                        if len(potential_schedules)!=0:
+                            random_schedule=random.choice(potential_schedules)
+                            master_order.append(random_schedule)
+                        else:
+                            random_bump=random.choice(possible_bumps)
+                            master_order.append(random_bump)
+                    else:
+                        random_bump=random.choice(possible_bumps)
+                        master_order.append(random_bump)
+
+                    master_order.append(segment)
+                    continue
+
+                elif segpos<len(show_segments)-1:
+                    master_order.append(segment)
+                    random_bump=random.choice(possible_bumps)
+                    master_order.append(random_bump)
+                    tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
+                    for tmp_c in tmp_cblock:
+                        master_order.append(tmp_c)
+                    
+                    if segpos==len(show_segments)-3:
+                        continue
+                    random_bump=random.choice(possible_bumps)
+                    master_order.append(random_bump)
+
+                else:
+                    master_order.append(segment)
+                    random_bump=random.choice(possible_bumps)
+                    master_order.append(random_bump)
+
+        return(master_order)
+
     
     def Nick_at_Nite(self,shows,type_dict,clip_dict,flag_dict,length_dict):
         master_order=[]
@@ -652,10 +1025,10 @@ class Block_Assembler:
         self.clip_dict=self.correct_clip_timeofyear(self.clip_dict,self.curmonth,self.months)
         
         #THIS WILL NEED TO BE CHANGED AT SOME POINT PROBABLY
-        probability_dict={}
+        self.probability_dict={}
         for key in self.clip_dict.keys():
             if key!='commercials' and key!='bumps' and key!='schedules':
-                probability_dict[key]=0.05
+                self.probability_dict[key]=0.05
             
         if reuse_bumps==False and 'bump_logs' in self.paths.keys():
             self.clip_dict['bumps']=self.remove_used_bumps(self.bumpdict,self.clip_dict,replace=True)
@@ -663,17 +1036,22 @@ class Block_Assembler:
             print('bump_logs path not specified in filepaths dictionary. Please update this and try again.')
             print('Reusing bumps...')
         
-        length_dict={}
+        self.length_dict={}
         for key in self.clip_dict.keys():
-            length_dict[key]=length_vids(self.clip_dict[key])
+            self.length_dict[key]=length_vids(self.clip_dict[key])
             
         if self.blocktype=='Adult Swim':
-            master_order=self.Adult_Swim(self.showlist,self.showtypes,self.clip_dict,probability_dict,length_dict)
+            master_order=self.Adult_Swim(self.showlist,self.showtypes,self.clip_dict,self.probability_dict,self.length_dict)
         elif self.blocktype=='FOX':
-            master_order=self.FOX(self.showlist,self.showtypes,self.clip_dict,probability_dict,length_dict)
+            master_order=self.FOX(self.showlist,self.showtypes,self.clip_dict,self.probability_dict,self.length_dict)
         elif self.blocktype=='Nick at Nite':
-            master_order=self.Nick_at_Nite(self.showlist,self.showtypes,self.clip_dict,probability_dict,length_dict)
+            master_order=self.Nick_at_Nite(self.showlist,self.showtypes,self.clip_dict,self.probability_dict,self.length_dict)
         elif self.blocktype=='Custom':
-            master_order=self.Create_Block(self.showlist,self.showtypes,self.clip_dict,probability_dict,length_dict)
+            master_order=self.Create_Block(self.showlist,self.showtypes,self.clip_dict,self.probability_dict,self.length_dict)
+        elif self.blocktype=='Boomerang':
+            master_order=self.Boomerang(self.showlist,self.showtypes,self.clip_dict,self.probability_dict,self.length_dict)
+        elif self.blocktype=='Cartoon Network':
+            master_order=self.Cartoon_Network(self.showlist,self.showtypes,self.clip_dict,self.probability_dict,self.length_dict)
             
+        print('Done!')
         return(master_order)
