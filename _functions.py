@@ -201,7 +201,7 @@ class Block_Assembler:
 
             #if the addition of the new promo causes the commercial block to run 10 seconds over the specified time, then skip 
             #it and select another one
-            if commercial_block_size<-15:
+            if commercial_block_size<-10:
                 commercial_block_size=commercial_block_size+diff
             #if the commercial has already been selected for the broadcast then skip it and select another one
             elif commercial in commercials_list:
@@ -250,7 +250,7 @@ class Block_Assembler:
             f.seek(0)
             past_episodes_used=f.readlines()
 
-        if len(past_episodes_used)>0:
+        if past_episodes_used:
             if ((len(past_episodes_used)/len(show_files))>0.9) & (show_type=='episodic'):
                 with open(path_to_log+show+'.txt','w') as f:
                     f.seek(0)
@@ -382,6 +382,7 @@ class Block_Assembler:
                 
                 else:
                     master_order.append(segment)
+                    master_order.append('BREAK END OF SHOW')
 
         print('Done!')
         return(master_order)
@@ -459,7 +460,7 @@ class Block_Assembler:
 
                         
                     show_intro=clip_dict['bumps'][np.array([show+' Intro' in bump for bump in clip_dict['bumps']])]
-                    if len(show_intro)<1:
+                    if not show_intro:
                         neutral_intros=clip_dict['bumps'][np.array(['Neutral Any' in bump for bump in clip_dict['bumps']])]
                         master_order.append(random.choice(neutral_intros))
                     else:
@@ -469,14 +470,14 @@ class Block_Assembler:
                     
                     transition_bumps_in=clip_dict['bumps'][np.array([show+' Fade In' in bump for bump in clip_dict['bumps']])]
                     transition_bumps_out=clip_dict['bumps'][np.array([show+' Fade Out' in bump for bump in clip_dict['bumps']])]
-                    if len(transition_bumps_in)<1:
+                    if not transition_bumps_in:
                         transition_bumps_in=clip_dict['bumps'][np.array(['Neutral Fade In' in bump for bump in clip_dict['bumps']])]
-                    if len(transition_bumps_out)<1:
+                    if not transition_bumps_out:
                         transition_bumps_out=clip_dict['bumps'][np.array(['Neutral Fade Out' in bump for bump in clip_dict['bumps']])]
 
                     if show in self.boomerang_dict:
                         interstitial=clip_dict['bumps'][np.array([show+' Interstitial' in bump for bump in clip_dict['bumps']])]
-                        if len(interstitial)<1:
+                        if not interstitial:
                             interstitial=clip_dict['bumps'][np.array(['Neutral Any' in bump for bump in clip_dict['bumps']])]
                         master_order.append(random.choice(interstitial))
                         continue
@@ -508,15 +509,17 @@ class Block_Assembler:
                 
                 elif segpos==len(show_segments)-1:
                     ending_bump=clip_dict['bumps'][np.array([show+' End' in bump for bump in clip_dict['bumps']])]
-                    if len(ending_bump)>0:
+                    if ending_bump:
                         master_order.append(random.choice(ending_bump))
                         
                     if showpos<len(shows)-1:
                         if os.path.isfile(self.paths['clips']['bumps']+'Up Next -'+shows[showpos+1]+'.mp4')==True:
                             master_order.append(self.paths['clips']['bumps']+'Up Next -'+shows[showpos+1]+'.mp4')
-                            
+                            master_order.append('BREAK END OF SHOW')
+
                     else:
                         master_order.append(self.paths['clips']['bumps']+'Neutral End.mp4')
+                        master_order.append('BREAK END OF SHOW')
 
 
         return(master_order)
@@ -528,6 +531,10 @@ class Block_Assembler:
                               'Trigun']):
         
         master_order=[]
+        
+        tmp_cblock,flag_dict=self.commercial_generator(90,flag_dict,master_order,clip_dict,length_dict)
+        for tmp_c in tmp_cblock:
+            master_order.append(tmp_c)
 
         #add the any intro bumps you want first in the order
         master_order.append('/Users/bwal/Desktop/Archived Bumps & Commercials/AdultSwim/Adult Swim Advisory.mp4')
@@ -583,17 +590,16 @@ class Block_Assembler:
             if showpos>0:
                 #if show specific bumps exist, lead off with them before a show starts
                 #otherwise throw in either a text bump or pic bump depending on where in the lineup you are
-                if len(intro_bumps)<1:
+                if not intro_bumps:
                     show_starter_bump=random.sample(list(possible_bumps),1)[0]
 
                     if show_starter_bump in master_order:
                         while show_starter_bump in master_order: #possible infinite loop - should be fixed
                             show_starter_bump=random.sample(list(possible_bumps),1)[0]
-                    master_order.append(show_starter_bump)
 
                 else:
-                    random_intro_bump=random.sample(list(intro_bumps),1)[0]
-                    master_order.append(random_intro_bump)
+                    show_starter_bump=random.sample(list(intro_bumps),1)[0]
+                master_order.append(show_starter_bump)
 
             commercial_length=get_commercial_break_length(show_segments)
             
@@ -622,15 +628,7 @@ class Block_Assembler:
                         print(fadeout)
                         while 'Numbers Game' in fadeout:
                             fadeout=random.sample(list(fadeout_bumps),1)[0]
-
-                    master_order.append(fadeout)
-
-                    #generate a commercial break using the function above, specificying the length of the block in seconds followed by
-                    #the probabilities and then append each entry in the commercial block to the master file
-                    tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
-                    for tmp_c in tmp_cblock:
-                        master_order.append(tmp_c)
-
+                            
                     #after the commercial break, randomly select an intro to fade back into the show
                     if show not in ACTN_shows:
                         fadein_bumps=possible_bumps[np.array(['Fade Out' not in bump for bump in possible_bumps])==True]
@@ -650,6 +648,17 @@ class Block_Assembler:
                         print(fadein)
                         while 'Numbers Game' in fadein: #possible infinite loop here, fix this
                             fadein=random.sample(list(fadein_bumps),1)[0]
+                            
+                            
+                    length_of_other=length_vids(list((fadeout,fadein))).sum()
+
+                    master_order.append(fadeout)
+
+                    #generate a commercial break using the function above, specificying the length of the block in seconds followed by
+                    #the probabilities and then append each entry in the commercial block to the master file
+                    tmp_cblock,flag_dict=self.commercial_generator(commercial_length-length_of_other,flag_dict,master_order,clip_dict,length_dict)
+                    for tmp_c in tmp_cblock:
+                        master_order.append(tmp_c)
 
                     master_order.append(fadein)
 
@@ -664,7 +673,6 @@ class Block_Assembler:
                             while end_bump in master_order:
                                 end_bump=random.sample(list(bw_bumps),1)[0]
 
-                        master_order.append(end_bump)
 
                     elif show!=shows[-1]:
                         end_bump=random.sample(list(pic_bumps),1)[0]
@@ -672,15 +680,18 @@ class Block_Assembler:
                             while end_bump in master_order:
                                 end_bump=random.sample(list(pic_bumps),1)[0]
 
-                        master_order.append(end_bump)
-
                     else:
+                        master_order.append('BREAK END OF SHOW')
                         continue
+                        
+                    master_order.append(end_bump)
+                    length_of_other=get_length(end_bump)
 
                     #put in some commercials between shows but make sure to start it off first with an [as] promo
-                    tmp_cblock,flag_dict=self.commercial_generator(commercial_length,{'promos':1},master_order,clip_dict,length_dict)
+                    tmp_cblock,flag_dict=self.commercial_generator(commercial_length-lenth_of_other,{'promos':1},master_order,clip_dict,length_dict)
                     for tmp_c in tmp_cblock:
                         master_order.append(tmp_c)
+                    master_order.append('BREAK END OF SHOW')
 
         print('Done!')
         return(master_order)
@@ -738,6 +749,9 @@ class Block_Assembler:
                     while random_promo in master_order[-30:]:
                         random_promo=random.choice(clip_dict['promos'])
                     master_order.append(random_promo)
+                elif segpos==len(show_segments)-1:
+                    master_order.append('BREAK END OF SHOW')
+
 
         return(master_order)
     
@@ -818,7 +832,8 @@ class Block_Assembler:
                 master_order.append(random.choice(fadeout_bumps))
             else:
                 master_order.append(top5_folder+top5_year+' Top 5 Outro.mp4')
-        
+                master_order.append('BREAK END OF SHOW')
+
         return(master_order)
 
         
@@ -869,57 +884,82 @@ class Block_Assembler:
             for segpos,segment in enumerate(show_segments):
 
                 if segpos==0:
+                    random_bump_in=random.choice(possible_bumps)
+                    length_of_other=get_length(random_bump_in)
+                    
                     #generate a commercial break using the function above, specificying the length of the block in seconds followed by
                     #the probabilities and then append each entry in the commercial block to the master file
-                    tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
+                    tmp_cblock,flag_dict=self.commercial_generator(commercial_length-length_of_other,flag_dict,master_order,clip_dict,length_dict)
                     for tmp_c in tmp_cblock:
                         master_order.append(tmp_c)
                     
-                    random_bump=random.choice(possible_bumps)
-                    master_order.append(random_bump)
+                    master_order.append(random_bump_in)
                     master_order.append(segment)
                     if show_segs_include_intros==False:
                         random_bump=random.choice(possible_bumps)
-                        master_order.append(random_bump)
-                        tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
+                        random_bump_out=random.choice(possible_bumps)
+                        random_bump_in=random.choice(possible_bumps)
+                        
+                        counter=0
+                        while random_bump_in==random_bump_out:
+                            random_bump_in=random.choice(possible_bumps)
+                            counter+=0
+                            if counter==10:
+                                break
+                            
+                        length_of_other=length_vids(list((random_bump_out,random_bump_in))).sum()
+                        
+                        master_order.append(random_bump_out)
+                        tmp_cblock,flag_dict=self.commercial_generator(commercial_length-length_of_other,flag_dict,master_order,clip_dict,length_dict)
                         for tmp_c in tmp_cblock:
                             master_order.append(tmp_c)
-                        random_bump=random.choice(possible_bumps)
-                        master_order.append(random_bump)
+                            
+                        master_order.append(random_bump_in)
                 
                 elif segpos==len(show_segments)-2 and show_segs_include_intros==True:
                     if showpos<(len(shows)-1):
                         potential_schedules=clip_dict['schedules'][np.array([shows[showpos]+' '+shows[showpos+1] in entry for entry in clip_dict['schedules']])]
                         if len(potential_schedules)!=0:
-                            random_schedule=random.choice(potential_schedules)
-                            master_order.append(random_schedule)
+                            random_bump_in=random.choice(potential_schedules)
                         else:
-                            random_bump=random.choice(possible_bumps)
-                            master_order.append(random_bump)
+                            random_bump_in=random.choice(possible_bumps)
                     else:
-                        random_bump=random.choice(possible_bumps)
-                        master_order.append(random_bump)
+                        random_bump_in=random.choice(possible_bumps)
 
+                    master_order.append(random_bump_in)
                     master_order.append(segment)
                     continue
 
                 elif segpos<len(show_segments)-1:
                     master_order.append(segment)
-                    random_bump=random.choice(possible_bumps)
-                    master_order.append(random_bump)
-                    tmp_cblock,flag_dict=self.commercial_generator(commercial_length,flag_dict,master_order,clip_dict,length_dict)
+                    random_bump_out=random.choice(possible_bumps)
+                    random_bump_in=random.choice(possible_bumps)
+
+                    counter=0
+                    while random_bump_in==random_bump_out:
+                        random_bump_in=random.choice(possible_bumps)
+                        counter+=0
+                        if counter==10:
+                            break
+                            
+                    length_of_other=length_vids(list((random_bump_out,random_bump_in))).sum()
+
+                            
+                    master_order.append(random_bump_out)
+                    tmp_cblock,flag_dict=self.commercial_generator(commercial_length-length_of_other,flag_dict,master_order,clip_dict,length_dict)
                     for tmp_c in tmp_cblock:
                         master_order.append(tmp_c)
                     
                     if segpos==len(show_segments)-3:
                         continue
-                    random_bump=random.choice(possible_bumps)
-                    master_order.append(random_bump)
+                    master_order.append(random_bump_in)
 
                 else:
                     master_order.append(segment)
                     random_bump=random.choice(possible_bumps)
                     master_order.append(random_bump)
+                    master_order.append('BREAK END OF SHOW')
+
 
         return(master_order)
 
@@ -974,9 +1014,9 @@ class Block_Assembler:
                         if len(potential_schedules_two)==0 and len(potential_schedules_three)==0:
                             pass
                         else:
-                            if len(potential_schedules_three)>0 and len(potential_schedules_two)==0:
+                            if potential_schedules_three and not potential_schedules_two:
                                 potential_schedules=potential_schedules_three
-                            elif len(potential_schedules_two)>0 and len(potential_schedules_three)==0:
+                            elif potential_schedules_two and not potential_schedules_three:
                                 potential_schedules=potential_schedules_two
                             else:
                                 potential_schedules=np.append(potential_schedules_three,potential_schedules_two)
@@ -996,6 +1036,8 @@ class Block_Assembler:
                     while random_jingle in master_order:
                         random_jingle=random.choice(clip_dict['bumps'])
                     master_order.append(random_jingle)
+                elif segpos==len(show_segments)-1:
+                    master_order.append('BREAK END OF SHOW')
                     
         return(master_order)
                 
@@ -1008,7 +1050,8 @@ class Block_Assembler:
                     
     def generate(self,
                 reuse_bumps=True,
-                use_all_commercials=False):
+                use_all_commercials=False,
+                recalc_length=False):
         
         if use_all_commercials==False:
             self.clip_dict=self.retrieve_clips(self.paths['clips'])
@@ -1038,7 +1081,11 @@ class Block_Assembler:
         
         self.length_dict={}
         for key in self.clip_dict.keys():
-            self.length_dict[key]=length_vids(self.clip_dict[key])
+            if os.path.exists(self.paths['clips'][key]+'_dir_lengths.npy') and not recalc_length:
+                self.length_dict[key]=np.load(self.paths['clips'][key]+'_dir_lengths.npy')
+            else:
+                self.length_dict[key]=length_vids(self.clip_dict[key])
+                np.save(self.paths['clips'][key]+'_dir_lengths.npy',self.length_dict[key])
             
         if self.blocktype=='Adult Swim':
             master_order=self.Adult_Swim(self.showlist,self.showtypes,self.clip_dict,self.probability_dict,self.length_dict)
