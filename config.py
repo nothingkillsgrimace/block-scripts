@@ -73,8 +73,13 @@ filepaths={
             'promos_toonami':'/data/media/block_media/Archived Bumps & Commercials/Toonami/Promo_Commercials/TOM3.5/',
             'bumps':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/CN City/Bumps/',
             'schedules':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/CN City/Now Then/',
+            'groovies':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/Groovies/clips/',
         },
         'logo':'/unraid-scripts/logo/logo_cn.png',
+        'groovies_intro':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/Groovies/Groovies Intro.mp4',
+        'groovies_outro':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/Groovies/Groovies Outro.mp4',
+        'top5_folder':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/Top 5/',
+        'top5_year':'2004',
     },
     
     'Cartoon Network Powerhouse':{
@@ -86,8 +91,14 @@ filepaths={
             'bumps':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/Powerhouse/',
             'schedules':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/Powerhouse/up_next/',
             'station_ids':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/Powerhouse/station_ids/',
+            'groovies':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/Groovies/clips/',
         },
         'logo':'/unraid-scripts/logo/logo_Cartoon Network.png',
+        'groovies_intro':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/Groovies/Groovies Intro.mp4',
+        'groovies_outro':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/Groovies/Groovies Outro.mp4',
+        'top5_folder':'/data/media/block_media/Archived Bumps & Commercials/Cartoon Network/Bumps/Top 5/',
+        'top5_year':'2002',
+
     },
     
     'Toonami TOM2':{
@@ -193,6 +204,7 @@ type_dict={
     'X Files':'serial',
     'Powerpuff Girls':'episodic',
     'Ed Edd n Eddy':'episodic',
+    'Camp Lazlo':'episodic',
     'Johnny Bravo':'episodic',
     'Dexters Laboratory':'episodic',
     'Courage the Cowardly Dog':'episodic',
