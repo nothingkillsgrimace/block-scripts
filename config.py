@@ -42,6 +42,8 @@ filepaths={
                 'filename':'as_bumps.txt'
             },
         },
+        'advisory':'/data/media/block_media/Archived Bumps & Commercials/AdultSwim/Adult Swim Advisory.mp4',
+        'pool_intro':'/data/media/block_media/Archived Bumps & Commercials/AdultSwim/Bumps/Pool - Intro.mp4',
     },
     
     'Boomerang':{

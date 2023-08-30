@@ -587,8 +587,8 @@ class Block_Assembler:
             master_order.append(tmp_c)
 
         #add the any intro bumps you want first in the order
-        master_order.append('/data/media/block_media/Archived Bumps & Commercials/AdultSwim/Adult Swim Advisory.mp4')
-        master_order.append('/data/media/block_media/Archived Bumps & Commercials/AdultSwim/Bumps/Pool - Intro.mp4')
+        master_order.append(self.paths['advisory'])
+        master_order.append(self.paths['pool_intro'])
 
         #start looping through each show in the list
         for showpos,show in enumerate(shows):
