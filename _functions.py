@@ -589,10 +589,12 @@ class Block_Assembler:
         #add the any intro bumps you want first in the order
         master_order.append(self.paths['advisory'])
         master_order.append(self.paths['pool_intro'])
+        
+        remaining_multiparters=[]
 
         #start looping through each show in the list
         for showpos,show in enumerate(shows):
-
+            print(show)
             #categorize the bumps
             bw_bumps=clip_dict['bumps'][np.array(['General -' in bump for bump in clip_dict['bumps']])==True]
             intro_bumps=clip_dict['bumps'][np.array(['Intro - '+show in bump for bump in clip_dict['bumps']])==True]
@@ -634,8 +636,7 @@ class Block_Assembler:
                 print('ERROR: Show type not specified properly. Show type must either be "serial" or "episodic" if a specific episode is not defined')
                 print('Current show is ',show)
                 break
-
-
+                
             #if it isn't the first show in the lineup
             if showpos>0:
                 #if show specific bumps exist, lead off with them before a show starts
@@ -646,9 +647,29 @@ class Block_Assembler:
                     if show_starter_bump in master_order:
                         while show_starter_bump in master_order: #possible infinite loop - should be fixed
                             show_starter_bump=random.sample(list(possible_bumps),1)[0]
-
-                else:
+                            
+                    if 'MultiParter' in show_starter_bump and not remaining_multiparters:
+                        lub_idx=show_starter_bump.find('MultiParter')
+                        mp_bumps=possible_bumps[np.array([show_starter_bump[:lub_idx] in bump for bump in possible_bumps])==True]
+                        mp_bumps.sort()
+                        show_starter_bump=mp_bumps[0]
+                        print(mp_bumps)
+                        if len(mp_bumps)>1:
+                            remaining_multiparters=mp_bumps[1:]
+                        else:
+                            remaining_multiparters=[]
+                    elif len(remaining_multiparters):
+                        show_starter_bump=remaining_multiparters[0]
+                        if len(remaining_multiparters)>1:
+                            remaining_multiparters=remaining_multiparters[1:]
+                        else:
+                            remaining_multiparters=[]
+                                   
+                elif intro_bumps:
                     show_starter_bump=random.sample(list(intro_bumps),1)[0]
+                    
+
+
                 master_order.append(show_starter_bump)
 
             commercial_length=get_commercial_break_length(show_segments)
@@ -673,7 +694,7 @@ class Block_Assembler:
                         print(fadeout)
                         while fadeout in master_order:
                             fadeout=random.sample(list(fadeout_bumps),1)[0]
-                    elif 'Numbers Game' in fadeout and fadeout in master_order:
+                    elif 'Numbers Game' in fadeout and sum(['Numbers Game' in bump for bump in master_order]):
                         print('HEY! DUPLICATE NUMBERS GAME! Removing...')
                         print(fadeout)
                         while 'Numbers Game' in fadeout:
@@ -693,13 +714,54 @@ class Block_Assembler:
                         print(fadein)
                         while fadein in master_order:
                             fadein=random.sample(list(fadein_bumps),1)[0]
-                    elif 'Numbers Game' in fadein and fadein in master_order:
+                    elif 'Numbers Game' in fadein and sum(['Numbers Game' in bump for bump in master_order]):
                         print('HEY! DUPLICATE NUMBERS GAME! Removing...')
                         print(fadein)
                         while 'Numbers Game' in fadein: #possible infinite loop here, fix this
                             fadein=random.sample(list(fadein_bumps),1)[0]
+                                  
+                    if 'MultiParter' in fadein and not remaining_multiparters: 
+                        lub_idx=fadein.find('MultiParter')
+                        mp_bumps=possible_bumps[np.array([fadein[:lub_idx] in bump for bump in possible_bumps])==True]
+                        mp_bumps.sort()
+                        print(mp_bumps)
+                        if len(mp_bumps)>1:
+                            fadeout=mp_bumps[0]
+                            fadein=mp_bumps[1]
+                            if len(mp_bumps)>2:
+                                remaining_multiparters=mp_bumps[2:]
+                            else:
+                                remaining_multiparters=[]
+                        else:
+                            remaining_multiparters=[]
+                    elif 'MultiParter' in fadeout and not remaining_multiparters:
+                        lub_idx=fadeout.find('MultiParter')
+                        mp_bumps=possible_bumps[np.array([fadeout[:lub_idx] in bump for bump in possible_bumps])==True]
+                        mp_bumps.sort()
+                        print(mp_bumps)
+                        if len(mp_bumps)>1:
+                            fadeout=mp_bumps[0]
+                            fadein=mp_bumps[1]
+                            if len(mp_bumps)>2:
+                                remaining_multiparters=mp_bumps[2:]
+                            else:
+                                remaining_multiparters=[]
+                        else:
+                            remaining_multiparters=[]
+                    elif len(remaining_multiparters):
+                        show_starter_bump=remaining_multiparters[0]
+                        if len(remaining_multiparters)>1:
+                            fadein=remaining_multiparters[0]
+                            fadeout=remaining_multiparters[1]
                             
-                            
+                            if len(remaining_multiparters)>2:
+                                remaining_multiparters=remaining_multiparters[2:]
+                            else:
+                                remaining_multiparters=[]
+                        elif len(remaining_multiparters)==1:
+                            fadein=remaining_multiparters[0]
+                            remaining_multiparters=[]
+
                     length_of_other=length_vids(list((fadeout,fadein))).sum()
 
                     master_order.append(fadeout)
@@ -717,12 +779,28 @@ class Block_Assembler:
 
                     #if the show is in the first half of the lineup, throw a text bump at the end
                     #otherwise, throw in a picture bump
-                    if show in shows[:int(len(shows)/2)]:
+                    if showpos<=int(len(shows)/2):
                         end_bump=random.sample(list(bw_bumps),1)[0]
                         if end_bump in master_order:
                             while end_bump in master_order:
                                 end_bump=random.sample(list(bw_bumps),1)[0]
-
+                                
+                        if 'MultiParter' in end_bump and not remaining_multiparters:
+                            lub_idx=end_bump.find('MultiParter')
+                            mp_bumps=possible_bumps[np.array([end_bump[:lub_idx] in bump for bump in possible_bumps])==True]
+                            mp_bumps.sort()
+                            print(mp_bumps)
+                            end_bump=mp_bumps[0]
+                            if len(mp_bumps)>1:
+                                remaining_multiparters=mp_bumps[1:]
+                            else:
+                                remaining_multiparters=[]
+                        elif len(remaining_multiparters):
+                            end_bump=remaining_multiparters[0]
+                            if len(remaining_multiparters)>1:
+                                remaining_multiparters=remaining_multiparters[1:]
+                            else:
+                                remaining_multiparters=[]
 
                     elif show!=shows[-1]:
                         end_bump=random.sample(list(pic_bumps),1)[0]
@@ -1231,7 +1309,7 @@ class Block_Assembler:
                     master_order.append('BREAK END OF SHOW')
                     
                     #5% chance of adding in a CN Groovies to the block
-                    if showpos==len(shows)//2 and random.random()>0:
+                    if showpos==len(shows)//2 and random.random()>0.8:
                         print('ADDING GROOVIES')
                         master_order.append(self.paths['groovies_intro'])
                         random_groovie=random.choice(clip_dict['groovies'])
