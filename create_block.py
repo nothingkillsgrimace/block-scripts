@@ -55,30 +55,44 @@ block=Block_Assembler(
     block_type,
     config.filepaths,
     config.type_dict,
+    config.tv_ratings,
 )
 
 for i,x in enumerate(list_of_selected_dates):
     print(x)
     
     if block_type=='Adult Swim':
-        shows=[random.choice(config.show_groups['Adult Swim_1']),
-               random.choice(config.show_groups['Adult Swim_1']),
-               random.choice(config.show_groups['Adult Swim_2']),
-               random.choice(config.show_groups['Adult Swim_2']),
-               'Inuyasha','Cowboy Bebop',
-               random.choice(config.show_groups['Adult Swim_3'])]
+        shows=[]
+        for poss_show in range(2):
+            rand_show=random.choice(config.show_groups['Adult Swim_1'])
+            while rand_show in shows:
+                rand_show=random.choice(config.show_groups['Adult Swim_1'])
+            shows.append(rand_show)
+        for poss_show in range(2):
+            rand_show=random.choice(config.show_groups['Adult Swim_2'])
+            while rand_show in shows:
+                rand_show=random.choice(config.show_groups['Adult Swim_2'])
+            shows.append(rand_show)
+        shows.append('Inuyasha')
+        shows.append('Wolfs Rain')
+        shows.append(random.choice(config.show_groups['Adult Swim_3']))
     elif block_type=='Nick at Nite':
-        shows=[random.choice(config.show_groups['Nick at Nite_1']),
-               random.choice(config.show_groups['Nick at Nite_1']),
-               random.choice(config.show_groups['Nick at Nite_1']),
-               random.choice(config.show_groups['Nick at Nite_1']),
-               random.choice(config.show_groups['Nick at Nite_1']),
-               random.choice(config.show_groups['Nick at Nite_1'])]
+        shows=[]
+        possible_shows=config.show_groups['Nick at Nite_1'].copy()
+        for poss_show in range(6):
+            rand_show=random.choice(possible_shows)
+            possible_shows=list(filter((rand_show).__ne__, possible_shows))
+            shows.append(rand_show)
     elif block_type=='FOX':
         shows=['Simpsons','King of the Hill',
                'Malcom in the Middle','X Files']
     elif block_type=='Cartoon Network Powerhouse':
-        shows=['Courage the Cowardly Dog','Powerpuff Girls','Ed Edd n Eddy','Cow and Chicken','Johnny Bravo','Dexters Laboratory']
+        possible_shows=['Courage the Cowardly Dog','Powerpuff Girls','Ed Edd n Eddy','Cow and Chicken','Johnny Bravo','Dexters Laboratory']
+        shows=[]
+        for poss_show in range(len(possible_shows)):
+            rand_show=random.choice(possible_shows)
+            possible_shows=list(filter((rand_show).__ne__, possible_shows))
+            shows.append(rand_show)
     elif block_type=='Cartoon Network City':
         shows=['Courage the Cowardly Dog','The Grim Adventures of Billy and Mandy','Ed Edd n Eddy','Dexters Laboratory']
     elif block_type=='Toonami TOM2':
@@ -98,35 +112,8 @@ for i,x in enumerate(list_of_selected_dates):
     cu_locs=np.array([np.argwhere(fixed_paths==temp_clip)[0][0] for temp_clip in clips_used])
     cu_rel_place=np.insert(np.diff(cu_locs),0,999)
 
-    #for cplace,cu in enumerate(clips_used):
-        #cut off the /mnt/user string to run command
-    #    durr=_functions.get_length(cu)
-    #    offset=durr-60 #fadeout for logo is 1 minute before clip end
-    #    if offset<0:
-    #        offset=0
-            
-        #pull tv rating icon from lookup table
-    #    for show in shows:
-    #        if show in cu:
-    #            tv_rating=config.tv_ratings['path']+config.tv_ratings[show]
-    #            break
-        
-    #    if cu_rel_place[cplace]==1:
-            #command for the subprocess operation - NEED DOUBLE BRACKET QUOTES!
-    #        cmd = f'/unraid-scripts/logo/add_logo_no_tv_rating.sh "{cu}" "{config.filepaths[block_type]["logo"]}" "{str(durr)}" "{str(offset)}" "{str(cplace)}"'
-    #        process=subprocess.Popen(cmd, shell=True)
-    #        process.wait()
-    #    else:
-            #command for the subprocess operation - NEED DOUBLE BRACKET QUOTES!
-    #        cmd = f'/unraid-scripts/logo/add_logo.sh "{cu}" "{config.filepaths[block_type]["logo"]}" "{tv_rating}" "{str(durr)}" "{str(offset)}" "{str(cplace)}"'
-    #        process=subprocess.Popen(cmd, shell=True)
-    #        process.wait()
-            
-    #    for content_place,content in enumerate(no_break_order):
-    #        if cu in content:
-    #            no_break_order[content_place]=no_break_order[content_place].replace(cu,'/data/media/block_media/Broadcast_Shows/temp/clip_'+str(cplace)+'.mp4')
-
+    no_break_order=block.add_logo(no_break_order,shows,i)
     
-    #block.write_past_shows(master_order,shows)
+    block.write_past_shows(master_order,shows)
     block.write_past_bumps(master_order,block.bumpdict)
     block.save_to_txt(no_break_order,block_type+'_'+x+'_'+name_of_selected_dates[i]+'.txt')

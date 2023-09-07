@@ -112,10 +112,11 @@ class Block_Assembler:
     mydate=datetime.datetime.now()-datetime.timedelta(hours=4)
     curmonth=mydate.strftime("%B")
     
-    def __init__(self,blocktype,paths,showtypes):
+    def __init__(self,blocktype,paths,showtypes,ratings):
         self.blocktype=blocktype
         self.allpaths=paths
         self.showtypes=showtypes
+        self.tv_ratings=ratings
         self.possible_shows=self.get_possible_shows(self.allpaths['shows'])
         
         if self.blocktype!='Custom':
@@ -316,7 +317,7 @@ class Block_Assembler:
                 shows_used_in_block=np.append(shows_used_in_block,match)
 
         shows_to_write=[]
-        for show in shows:
+        for show in np.unique(shows):
             if show in self.boomerang_dict:
                 [shows_to_write.append(item) for item in self.boomerang_dict[show]]
             else:
@@ -338,10 +339,8 @@ class Block_Assembler:
                     if entry in used_show and used_show[10:] not in contents:
                         contents.insert(-1,used_show+"'\n")
                 contents="".join(contents)
-                f.write(contents)
-
-
-                
+                f.write(contents)            
+        
     def write_past_bumps(self,master_order,bump_dict):
         
         if 'bump_logs' in self.paths.keys():
@@ -360,7 +359,63 @@ class Block_Assembler:
                         contents="".join(contents)
                         f.write(contents)
         else:
-            print('bump_logs path not defined in dictionary. Not writing bumps...')
+            print('bump_logs path not defined under heading "bump_logs" in config file. Please update this and run again. In the meantime, bumps will not be written...')
+            
+    
+    def add_logo(self,clip_order,shows,block_num):
+        #isolate all lines in order that contain shows. since all shows are within a certain folder, we look for that folder keyword
+        clips_used=np.array(clip_order)[np.array(['Broadcast_Shows' in clip for clip in clip_order])]
+        #blocks are assembled in a different file environment than where they are concatenated
+        #because of this, we cut off the first 9 characters corresponding to /mnt/user so all files start with /data
+        clips_used=np.array([clip.replace('/mnt/user/data','/data') for clip in clips_used])
+
+        #do this for all the clips in the order for a temporary calculation
+        fixed_paths=np.array([entry.replace('/mnt/user/data','/data') for entry in clip_order])
+        #get the relative location of each show in the order
+        cu_locs=np.array([np.argwhere(fixed_paths==temp_clip)[0][0] for temp_clip in clips_used])
+        #difference the relative locations. diff produces an array of size n-1 so we insert a value of 999 for the first
+        #here, a value of 1 means the two show clips are right next to each other (happens in instances where intro & outro are their own segments)
+        cu_rel_place=np.insert(np.diff(cu_locs),0,999)
+
+        #now loop through each show segment in the clip order
+        for cplace,cu in enumerate(clips_used):
+            #get the length of that segment
+            durr=get_length(cu)
+            #subtract 20 seconds from length to get the timing of when logo should fadeout
+            offset=durr-20
+
+            #when multiple blocks are constructed, temporary re-encoded clips with logos are written over each other when not assigned an identifier unique to the block in the order
+            clip_label=str(block_num).zfill(2)+'_'+str(cplace)
+            #if clip is shorter than 20 seconds, assign an offset value of 0
+            if offset<0:
+                offset=0
+
+            #pull tv rating icon from lookup table
+            for show in shows:
+                if show in cu:
+                    tv_rating=self.tv_ratings['path']+self.tv_ratings[show]
+                    break
+
+            #if the relative place of the segment isn't right next to another, then add the tv rating because we're coming in from commercial
+            if cu_rel_place[cplace]==1:
+                #command for the subprocess operation - NEED DOUBLE BRACKET QUOTES!
+                cmd = f'/unraid-scripts/logo/add_logo_no_tv_rating.sh "{cu}" "{self.paths["logo"]}" "{str(durr)}" "{str(offset)}" "{clip_label}"'
+                process=subprocess.Popen(cmd, shell=True)
+                process.wait()
+            else:
+                #command for the subprocess operation - NEED DOUBLE BRACKET QUOTES!
+                cmd = f'/unraid-scripts/logo/add_logo.sh "{cu}" "{self.paths["logo"]}" "{tv_rating}" "{str(durr)}" "{str(offset)}" "{clip_label}"'
+                process=subprocess.Popen(cmd, shell=True)
+                process.wait()
+
+            #now go through each show used in the clip order and replace it with its new corresponding re-encoded location with the logo added
+            for content_place,content in enumerate(clip_order):
+                if cu in content:
+                    clip_order[content_place]=clip_order[content_place].replace(cu,'/data/media/block_media/Broadcast_Shows/temp/clip_'+clip_label+'.mp4')
+                    
+        print('Logos added!')
+        return clip_order
+        
 
     def Create_Block(self,shows,type_dict,clip_dict,flag_dict,length_dict):
         master_order=[]
@@ -784,8 +839,12 @@ class Block_Assembler:
                         if end_bump in master_order:
                             while end_bump in master_order:
                                 end_bump=random.sample(list(bw_bumps),1)[0]
-                                
-                        if 'MultiParter' in end_bump and not remaining_multiparters:
+                        
+                        #throw in a multiparter end_bump only if there are no remaining multiparters that
+                        #were used previously and if the current show isn't the last show before switching
+                        #over to pic bumps.
+                        if 'MultiParter' in end_bump and not remaining_multiparters and \
+                        showpos<int(len(shows)/2):
                             lub_idx=end_bump.find('MultiParter')
                             mp_bumps=possible_bumps[np.array([end_bump[:lub_idx] in bump for bump in possible_bumps])==True]
                             mp_bumps.sort()
@@ -795,6 +854,16 @@ class Block_Assembler:
                                 remaining_multiparters=mp_bumps[1:]
                             else:
                                 remaining_multiparters=[]
+
+                        #if this is the last show before switching over the pic bumps,
+                        #try and toss out the multiparter bump for a new end bump
+                        elif 'MultiParter' in end_bump and not remaining_multiparters and \
+                        showpos==int(len(shows)/2):
+                            end_bump=random.sample(list(bw_bumps),1)[0]
+                            while end_bump in master_order or 'MultiParter' in end_bump:
+                                end_bump=random.sample(list(bw_bumps),1)[0]
+
+                        #otherwise if there are remaining multiparters, try and squeeze them in here
                         elif len(remaining_multiparters):
                             end_bump=remaining_multiparters[0]
                             if len(remaining_multiparters)>1:
@@ -1173,11 +1242,14 @@ class Block_Assembler:
         length_dict['promos_ccf']=length_dict['promos_ccf'][clip_dict['promos_ccf']==selected_ccf]
         clip_dict['promos_ccf']=clip_dict['promos_ccf'][clip_dict['promos_ccf']==selected_ccf]
         
-        potential_schedules=clip_dict['schedules'][np.array([shows[0]+' then '+shows[1] in entry for entry in clip_dict['schedules']])]
-        if len(potential_schedules)!=0:
-            sel_sched=random.choice(potential_schedules)
-            master_order.append(sel_sched)
-            length_of_other=get_length(sel_sched)
+        if len(shows)>1:
+            potential_schedules=clip_dict['schedules'][np.array([shows[0]+' then '+shows[1] in entry for entry in clip_dict['schedules']])]
+            if len(potential_schedules)!=0:
+                sel_sched=random.choice(potential_schedules)
+                master_order.append(sel_sched)
+                length_of_other=get_length(sel_sched)
+            else:
+                length_of_other=0
         else:
             length_of_other=0
 

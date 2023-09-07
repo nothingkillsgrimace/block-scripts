@@ -10,8 +10,7 @@ filepaths={
         'Adult Swim':'/data/media/block_media/Broadcast_Shows/Adult Swim/',
         'Cartoon Network':'/data/media/block_media/Broadcast_Shows/Cartoon Network/',
         'FOX':'/data/media/block_media/Broadcast_Shows/FOX/',
-        'Toonami TOM2':'/data/media/block_media/Broadcast_Shows/Toonami/',
-        'Toonami TOM3.5':'/data/media/block_media/Broadcast_Shows/Toonami/',
+        'Toonami':'/data/media/block_media/Broadcast_Shows/Toonami/',
         'Boomerang':'/data/media/block_media/Broadcast_Shows/Boomerang/',
     },
     'shows_with_logos':[
@@ -240,6 +239,9 @@ type_dict={
     'DBZ':'serial',
     'Gundam Wing':'serial',
     'Frisky Dingo':'serial',
+    'Aqua Teen Hunger Force':'episodic',
+    'Lupin the Third':'serial',
+    'Wolfs Rain':'serial',
 }
 
 
@@ -260,6 +262,7 @@ tv_ratings={
     'Harvey Birdman':'tv_ma.png',
     'Home Movies':'tv_14.png',
     'Inuyasha':'tv_14.png',
+    'Lupin the Third':'tv_14.png',
     'Metalocalypse':'tv_ma.png',
     'Mission Hill':'tv_14.png',
     'Oblongs':'tv_14.png',
@@ -349,10 +352,10 @@ tv_ratings={
 
 show_groups={
     'Adult Swim_1':['Family Guy','Futurama','American Dad'],
-    'Adult Swim_2':['Squidbillies','Frisky Dingo',
+    'Adult Swim_2':['Squidbillies','Frisky Dingo','Aqua Teen Hunger Force',
                    'Tom Goes To The Mayor','Sealab 2021',
                    'Robot Chicken','Metalocalypse','Harvey Birdman'],
-    'Adult Swim_3':['Boondocks','Home Movies','Case Closed'],
+    'Adult Swim_3':['Boondocks','Home Movies','Case Closed','Lupin the Third'],
     'Nick at Nite_1':['Bewitched','Dick Van Dyke','Happy Days','Taxi',
                       'Bob Newhart','F Troop','Mary Tyler Moore',
                       'The Munsters','Get Smart','The Wonder Years'],
